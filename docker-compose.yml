@@ -1,0 +1,21 @@
+services:
+  postgres:
+    image: postgres:17-alpine
+    container_name: sec-server-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: secserver
+      POSTGRES_USER: secserver
+      POSTGRES_PASSWORD: secserver
+    ports:
+      - "5432:5432"
+    volumes:
+      - sec-server-pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U secserver -d secserver"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  sec-server-pgdata:
