@@ -31,7 +31,6 @@
         <maven.compiler.target>21</maven.compiler.target>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <spring-authorization-server.version>1.5.1</spring-authorization-server.version>
-        <!-- Override transitives to pull CVE-fixed versions (Checkmarx-clean) -->
         <nimbus-jose-jwt.version>9.48</nimbus-jose-jwt.version>
     </properties>
 
@@ -42,7 +41,7 @@
                 <artifactId>spring-security-oauth2-authorization-server</artifactId>
                 <version>${spring-authorization-server.version}</version>
             </dependency>
-            <!-- Force-bump transitive nimbus-jose-jwt to fix GHSA-xwmg-2g98-w7v9 (DoS on deeply nested JSON) -->
+
             <dependency>
                 <groupId>com.nimbusds</groupId>
                 <artifactId>nimbus-jose-jwt</artifactId>
