@@ -39,11 +39,6 @@ public class SecurityConfig {
         return http.build();
     }
 
-    /**
-     * Per-request выбор AuthenticationManager'а по HTTP-заголовку "type".
-     * type=jwt   -> локальная проверка подписи через NimbusJwtDecoder (запрос в /oauth2/jwks)
-     * иначе      -> introspection в auth-server-opaque (RFC 7662)
-     */
     private AuthenticationManagerResolver<HttpServletRequest> authenticationManagerResolver() {
         JwtDecoder jwtDecoder = NimbusJwtDecoder.withJwkSetUri(jwksUri).build();
         OpaqueTokenIntrospector introspector = new SpringOpaqueTokenIntrospector(

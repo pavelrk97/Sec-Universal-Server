@@ -13,7 +13,7 @@ import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.core.userdetails.User;
 import org.springframework.security.core.userdetails.UserDetails;
-import org.springframework.security.crypto.password.NoOpPasswordEncoder;
+import org.springframework.security.crypto.factory.PasswordEncoderFactories;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.oauth2.core.AuthorizationGrantType;
 import org.springframework.security.oauth2.core.ClientAuthenticationMethod;
@@ -24,6 +24,7 @@ import org.springframework.security.oauth2.server.authorization.client.Registere
 import org.springframework.security.oauth2.server.authorization.config.annotation.web.configuration.OAuth2AuthorizationServerConfiguration;
 import org.springframework.security.oauth2.server.authorization.config.annotation.web.configurers.OAuth2AuthorizationServerConfigurer;
 import org.springframework.security.oauth2.server.authorization.settings.AuthorizationServerSettings;
+import org.springframework.security.oauth2.server.authorization.settings.ClientSettings;
 import org.springframework.security.oauth2.server.authorization.settings.OAuth2TokenFormat;
 import org.springframework.security.oauth2.server.authorization.settings.TokenSettings;
 import org.springframework.security.provisioning.InMemoryUserDetailsManager;
@@ -46,14 +47,10 @@ public class SecurityConfig {
     @Order(1)
     public SecurityFilterChain authServerSecurityFilterChain(HttpSecurity http) throws Exception {
         OAuth2AuthorizationServerConfiguration.applyDefaultSecurity(http);
-
         http.getConfigurer(OAuth2AuthorizationServerConfigurer.class)
                 .oidc(Customizer.withDefaults());
-
         http.exceptionHandling(e ->
-                e.authenticationEntryPoint(new LoginUrlAuthenticationEntryPoint("/login"))
-        );
-
+                e.authenticationEntryPoint(new LoginUrlAuthenticationEntryPoint("/login")));
         return http.build();
     }
 
@@ -67,37 +64,36 @@ public class SecurityConfig {
     }
 
     @Bean
-    public UserDetailsManager userDetailsManager() {
+    public PasswordEncoder passwordEncoder() {
+        return PasswordEncoderFactories.createDelegatingPasswordEncoder();
+    }
+
+    @Bean
+    public UserDetailsManager userDetailsManager(PasswordEncoder encoder) {
         UserDetails bill = User.withUsername("bill")
-                .password("password")
+                .password(encoder.encode("password"))
                 .authorities("read")
                 .build();
         return new InMemoryUserDetailsManager(bill);
     }
 
     @Bean
-    @SuppressWarnings("deprecation")
-    public PasswordEncoder passwordEncoder() {
-        return NoOpPasswordEncoder.getInstance();
-    }
-
-    @Bean
     public RegisteredClientRepository registeredClientRepository() {
         RegisteredClient client = RegisteredClient.withId(UUID.randomUUID().toString())
                 .clientId("client")
-                .clientSecret("secret")
+                .clientSecret("{noop}secret")
                 .clientAuthenticationMethod(ClientAuthenticationMethod.CLIENT_SECRET_BASIC)
                 .authorizationGrantType(AuthorizationGrantType.AUTHORIZATION_CODE)
                 .authorizationGrantType(AuthorizationGrantType.REFRESH_TOKEN)
                 .authorizationGrantType(AuthorizationGrantType.CLIENT_CREDENTIALS)
-                // diff: registrationId на стороне клиента будет "auth-server-opaque"
                 .redirectUri("http://localhost:8080/login/oauth2/code/auth-server-opaque")
                 .scope(OidcScopes.OPENID)
                 .scope("read")
                 .tokenSettings(TokenSettings.builder()
-                        // diff: REFERENCE = opaque-токен (просто id, не JWT).
-                        // Resource Server проверяет такой токен через introspection endpoint этого AS.
                         .accessTokenFormat(OAuth2TokenFormat.REFERENCE)
+                        .build())
+                .clientSettings(ClientSettings.builder()
+                        .requireAuthorizationConsent(false)
                         .build())
                 .build();
         return new InMemoryRegisteredClientRepository(client);
@@ -108,23 +104,16 @@ public class SecurityConfig {
         return AuthorizationServerSettings.builder().build();
     }
 
-    /**
-     * RSA-ключ всё ещё нужен — даже с REFERENCE access tokens, OIDC ID-токены остаются JWT,
-     * и их подпись лежит на этом ключе. /oauth2/jwks тоже остаётся.
-     */
     @Bean
     public JWKSource<SecurityContext> jwkSource() {
         KeyPair keyPair = generateRsaKey();
         RSAPublicKey publicKey = (RSAPublicKey) keyPair.getPublic();
         RSAPrivateKey privateKey = (RSAPrivateKey) keyPair.getPrivate();
-
         RSAKey rsaKey = new RSAKey.Builder(publicKey)
                 .privateKey(privateKey)
                 .keyID(UUID.randomUUID().toString())
                 .build();
-
-        JWKSet jwkSet = new JWKSet(rsaKey);
-        return new ImmutableJWKSet<>(jwkSet);
+        return new ImmutableJWKSet<>(new JWKSet(rsaKey));
     }
 
     private static KeyPair generateRsaKey() {
@@ -136,7 +125,4 @@ public class SecurityConfig {
             throw new IllegalStateException("Cannot generate RSA key", e);
         }
     }
-
-    // diff vs auth-server-jwt: убран OAuth2TokenCustomizer<JwtEncodingContext> —
-    // он работает только при выпуске JWT. У opaque-токенов claim'ов нет.
 }

@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <title>Sec-Server Client</title>
+    <style>
+        body { font-family: sans-serif; max-width: 600px; margin: 40px auto; padding: 0 16px; }
+        code { background: #eee; padding: 2px 6px; border-radius: 3px; }
+        a { color: #0366d6; }
+    </style>
+</head>
+<body>
+    <h1>Hello, <span th:text="${username}">user</span>!</h1>
+    <p>Logged in via provider: <code th:text="${provider}">provider</code></p>
+
+    <h2>Try it</h2>
+    <ul>
+        <li><a href="/call-rs">Call Resource Server</a> &mdash; get <code>/demo</code> using your access token</li>
+        <li><a href="/logout">Logout</a></li>
+    </ul>
+</body>
+</html>

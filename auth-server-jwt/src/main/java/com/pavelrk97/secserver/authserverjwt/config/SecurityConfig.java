@@ -13,7 +13,7 @@ import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.core.userdetails.User;
 import org.springframework.security.core.userdetails.UserDetails;
-import org.springframework.security.crypto.password.NoOpPasswordEncoder;
+import org.springframework.security.crypto.factory.PasswordEncoderFactories;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.oauth2.core.AuthorizationGrantType;
 import org.springframework.security.oauth2.core.ClientAuthenticationMethod;
@@ -24,6 +24,7 @@ import org.springframework.security.oauth2.server.authorization.client.Registere
 import org.springframework.security.oauth2.server.authorization.config.annotation.web.configuration.OAuth2AuthorizationServerConfiguration;
 import org.springframework.security.oauth2.server.authorization.config.annotation.web.configurers.OAuth2AuthorizationServerConfigurer;
 import org.springframework.security.oauth2.server.authorization.settings.AuthorizationServerSettings;
+import org.springframework.security.oauth2.server.authorization.settings.ClientSettings;
 import org.springframework.security.oauth2.server.authorization.settings.OAuth2TokenFormat;
 import org.springframework.security.oauth2.server.authorization.settings.TokenSettings;
 import org.springframework.security.oauth2.server.authorization.token.JwtEncodingContext;
@@ -48,24 +49,13 @@ public class SecurityConfig {
     @Order(1)
     public SecurityFilterChain authServerSecurityFilterChain(HttpSecurity http) throws Exception {
         OAuth2AuthorizationServerConfiguration.applyDefaultSecurity(http);
-
-        // Включаем OpenID Connect (нужен для scope=openid)
         http.getConfigurer(OAuth2AuthorizationServerConfigurer.class)
                 .oidc(Customizer.withDefaults());
-
-        // Если на OAuth2 эндпоинт пришёл неавторизованный пользователь —
-        // редиректим на форму логина /login (её обрабатывает chain #2 ниже).
         http.exceptionHandling(e ->
-                e.authenticationEntryPoint(new LoginUrlAuthenticationEntryPoint("/login"))
-        );
-
+                e.authenticationEntryPoint(new LoginUrlAuthenticationEntryPoint("/login")));
         return http.build();
     }
 
-    /* ============================================================
-     * 2) Filter chain для всего остального: форма логина, статика и т.п.
-     *    Order(2) — обрабатывает то, что не схватил chain #1.
-     * ============================================================ */
     @Bean
     @Order(2)
     public SecurityFilterChain defaultSecurityFilterChain(HttpSecurity http) throws Exception {
@@ -75,39 +65,25 @@ public class SecurityConfig {
         return http.build();
     }
 
-    /* ============================================================
-     * 3) Юзеры. In-memory, как в книге: bill / password / authority "read".
-     *    В реальной системе сюда подключают JdbcUserDetailsManager + БД.
-     * ============================================================ */
     @Bean
-    public UserDetailsManager userDetailsManager() {
+    public PasswordEncoder passwordEncoder() {
+        return PasswordEncoderFactories.createDelegatingPasswordEncoder();
+    }
+
+    @Bean
+    public UserDetailsManager userDetailsManager(PasswordEncoder encoder) {
         UserDetails bill = User.withUsername("bill")
-                .password("password")
+                .password(encoder.encode("password"))
                 .authorities("read")
                 .build();
         return new InMemoryUserDetailsManager(bill);
     }
 
-    /**
-     в проде —  BCrypt/Argon2
-     */
-    @Bean
-    @SuppressWarnings("deprecation")
-    public PasswordEncoder passwordEncoder() {
-        return NoOpPasswordEncoder.getInstance();
-    }
-
-    /* ============================================================
-     * клиент который запустится на :8080.
-     *    Spring Security клиент по дефолту строит redirect URI вида:
-     *    {baseUrl}/login/oauth2/code/{registrationId}
-     *    Поэтому "auth-server-jwt" — это registrationId, который мы задаём на стороне клиента.
-     * ============================================================ */
     @Bean
     public RegisteredClientRepository registeredClientRepository() {
         RegisteredClient client = RegisteredClient.withId(UUID.randomUUID().toString())
                 .clientId("client")
-                .clientSecret("secret")
+                .clientSecret("{noop}secret")
                 .clientAuthenticationMethod(ClientAuthenticationMethod.CLIENT_SECRET_BASIC)
                 .authorizationGrantType(AuthorizationGrantType.AUTHORIZATION_CODE)
                 .authorizationGrantType(AuthorizationGrantType.REFRESH_TOKEN)
@@ -116,35 +92,30 @@ public class SecurityConfig {
                 .scope(OidcScopes.OPENID)
                 .scope("read")
                 .tokenSettings(TokenSettings.builder()
-                        // SELF_CONTAINED = JWT. Альтернатива — REFERENCE (opaque).
                         .accessTokenFormat(OAuth2TokenFormat.SELF_CONTAINED)
+                        .build())
+                .clientSettings(ClientSettings.builder()
+                        .requireAuthorizationConsent(false)
                         .build())
                 .build();
         return new InMemoryRegisteredClientRepository(client);
     }
-
 
     @Bean
     public AuthorizationServerSettings authorizationServerSettings() {
         return AuthorizationServerSettings.builder().build();
     }
 
-    /* ============================================================
-    В проде ключи хранят в Vault/JKS.
-     * ============================================================ */
     @Bean
     public JWKSource<SecurityContext> jwkSource() {
         KeyPair keyPair = generateRsaKey();
         RSAPublicKey publicKey = (RSAPublicKey) keyPair.getPublic();
         RSAPrivateKey privateKey = (RSAPrivateKey) keyPair.getPrivate();
-
         RSAKey rsaKey = new RSAKey.Builder(publicKey)
                 .privateKey(privateKey)
                 .keyID(UUID.randomUUID().toString())
                 .build();
-
-        JWKSet jwkSet = new JWKSet(rsaKey);
-        return new ImmutableJWKSet<>(jwkSet);
+        return new ImmutableJWKSet<>(new JWKSet(rsaKey));
     }
 
     private static KeyPair generateRsaKey() {
