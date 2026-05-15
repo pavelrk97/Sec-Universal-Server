@@ -41,8 +41,11 @@ public class SecurityConfig {
 
     private AuthenticationManagerResolver<HttpServletRequest> authenticationManagerResolver() {
         JwtDecoder jwtDecoder = NimbusJwtDecoder.withJwkSetUri(jwksUri).build();
-        OpaqueTokenIntrospector introspector = new SpringOpaqueTokenIntrospector(
-                introspectionUri, introspectionClientId, introspectionClientSecret);
+        OpaqueTokenIntrospector introspector = SpringOpaqueTokenIntrospector
+                .withIntrospectionUri(introspectionUri)
+                .clientId(introspectionClientId)
+                .clientSecret(introspectionClientSecret)
+                .build();
 
         AuthenticationManager jwtAuth = new ProviderManager(new JwtAuthenticationProvider(jwtDecoder));
         AuthenticationManager opaqueAuth = new ProviderManager(new OpaqueTokenAuthenticationProvider(introspector));
