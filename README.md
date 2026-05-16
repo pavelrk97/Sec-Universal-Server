@@ -19,6 +19,4 @@ Client (:8080) ──► AS-JWT (:7070)        выдаёт JWT
 - Java 21
 - Spring Boot 3.5.3
 - Spring Authorization Server 1.5.1
-- PostgreSQL 17 (через `docker-compose`)
-- Maven (мульти-модуль)
 
