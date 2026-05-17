@@ -21,6 +21,7 @@
     <modules>
         <module>auth-server-jwt</module>
         <module>auth-server-opaque</module>
+        <module>sec-universal-starter</module>
         <module>resource-server</module>
         <module>client</module>
     </modules>
