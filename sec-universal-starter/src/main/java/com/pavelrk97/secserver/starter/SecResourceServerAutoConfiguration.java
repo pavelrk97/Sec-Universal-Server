@@ -2,6 +2,7 @@ package com.pavelrk97.secserver.starter;
 
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
+import org.springframework.boot.autoconfigure.security.servlet.SecurityAutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -20,7 +21,7 @@ import org.springframework.security.oauth2.server.resource.introspection.OpaqueT
 import org.springframework.security.oauth2.server.resource.introspection.SpringOpaqueTokenIntrospector;
 import org.springframework.security.web.SecurityFilterChain;
 
-@AutoConfiguration
+@AutoConfiguration(before = SecurityAutoConfiguration.class)
 @ConditionalOnClass(SecurityFilterChain.class)
 @EnableConfigurationProperties(SecProperties.class)
 public class SecResourceServerAutoConfiguration {
