@@ -1,62 +1,62 @@
 # Sec-Universal-Server
 
-OAuth2-инфраструктура на Spring Authorization Server: два сервера авторизации
-(JWT и opaque-токены), ресурс-сервер, поддерживающий оба формата, и
-OAuth2-клиент. Логика защиты ресурс-сервера вынесена в **переиспользуемый
-Spring Boot starter** — любой сервис подключает одну зависимость и две
-проперти и становится защищённым OAuth2 Resource Server без единой строки
-security-кода.
+OAuth2 infrastructure built on Spring Authorization Server: two authorization
+servers (JWT and opaque tokens), a resource server that supports both formats,
+and an OAuth2 client. The resource-server protection logic is extracted into a
+**reusable Spring Boot starter**. Any service adds a single dependency and two
+properties to become a protected OAuth2 Resource Server without a single line of
+security code.
 
-## Стек
+## Stack
 
 - Java 21
 - Spring Boot 3.5.3
 - Spring Authorization Server 1.5.1
-- Maven (мульти-модуль)
-- PostgreSQL 17 (docker-compose, для расширения)
-- 13 тестов: unit (Surefire) + integration (Failsafe)
+- Maven (multi-module)
+- PostgreSQL 17 (docker-compose, for future extension)
+- 13 tests: unit (Surefire) + integration (Failsafe)
 
-## Архитектура
+## Architecture
 
 ```
 client (:8080)
-   │  Authorization Code + PKCE
-   ▼
+   |  Authorization Code + PKCE
+   v
 auth-server-jwt (:7070)        auth-server-opaque (:6060)
-   выдаёт JWT                     выдаёт opaque-токены
+   issues JWT                     issues opaque tokens
    /oauth2/jwks                   /oauth2/introspect
         \                           /
          \                         /
-          ▼                       ▼
+          v                       v
             resource-server (:9090)
-            mode=both: заголовок "type"
-              type=jwt    → проверка подписи по JWKS
-              иначе       → introspection в auth-server-opaque
+            mode=both: "type" header
+              type=jwt    -> signature check via JWKS
+              otherwise   -> introspection at auth-server-opaque
 ```
 
-| Модуль | Роль | Порт |
+| Module | Role | Port |
 |---|---|---|
-| `auth-server-jwt` | сервер авторизации, выдаёт JWT, публичный ключ через `/oauth2/jwks` | 7070 |
-| `auth-server-opaque` | сервер авторизации, выдаёт opaque-токены, проверка через `/oauth2/introspect` | 6060 |
-| `resource-server` | защищённый API; security полностью из стартера (своего `SecurityConfig` нет) | 9090 |
-| `client` | OAuth2-клиент (Authorization Code + PKCE), два провайдера | 8080 |
-| `sec-universal-starter` | переиспользуемый стартер: защищает любой сервис как OAuth2 RS | — |
+| `auth-server-jwt` | authorization server, issues JWT, public key via `/oauth2/jwks` | 7070 |
+| `auth-server-opaque` | authorization server, issues opaque tokens, verified via `/oauth2/introspect` | 6060 |
+| `resource-server` | protected API; security comes entirely from the starter (no own `SecurityConfig`) | 9090 |
+| `client` | OAuth2 client (Authorization Code + PKCE), two providers | 8080 |
+| `sec-universal-starter` | reusable starter: protects any service as an OAuth2 RS | n/a |
 
-## sec-universal-starter — главное
+## sec-universal-starter: the core
 
-Стартер инкапсулирует настройку Resource Server. Потребителю не нужно писать
-`SecurityConfig`, выбирать провайдеры, переключать JWT/opaque вручную — всё
-управляется пропертями.
+The starter encapsulates the Resource Server setup. The consumer does not need
+to write a `SecurityConfig`, pick providers, or switch JWT/opaque manually. All
+of it is driven by properties.
 
-### Подключение
+### Adding it
 
-Установить стартер в локальный репозиторий (или задеплоить во внутренний Nexus):
+Install the starter into the local repository (or deploy it to an internal Nexus):
 
 ```bash
 mvn -pl sec-universal-starter -am install
 ```
 
-Добавить зависимость в потребляющий проект:
+Add the dependency to the consuming project:
 
 ```xml
 <dependency>
@@ -66,89 +66,88 @@ mvn -pl sec-universal-starter -am install
 </dependency>
 ```
 
-### Параметры (`sec.security.*`)
+### Properties (`sec.security.*`)
 
-| Проперти | Обязательна | Дефолт | Описание |
+| Property | Required | Default | Description |
 |---|---|---|---|
-| `sec.security.mode` | нет | `jwt` | Режим проверки: `jwt`, `opaque` или `both` |
-| `sec.security.jwt.jwks-uri` | для `jwt`/`both` | — | URL JWKS-эндпоинта сервера авторизации |
-| `sec.security.opaque.introspection-uri` | для `opaque`/`both` | — | URL introspection-эндпоинта |
-| `sec.security.opaque.client-id` | для `opaque`/`both` | — | client_id для аутентификации на introspection |
-| `sec.security.opaque.client-secret` | для `opaque`/`both` | — | client_secret для introspection |
-| `sec.security.type-header-name` | нет | `type` | Имя HTTP-заголовка для выбора провайдера в режиме `both` |
+| `sec.security.mode` | no | `jwt` | Verification mode: `jwt`, `opaque`, or `both` |
+| `sec.security.jwt.jwks-uri` | for `jwt`/`both` | n/a | JWKS endpoint URL of the authorization server |
+| `sec.security.opaque.introspection-uri` | for `opaque`/`both` | n/a | Introspection endpoint URL |
+| `sec.security.opaque.client-id` | for `opaque`/`both` | n/a | client_id used to authenticate at introspection |
+| `sec.security.opaque.client-secret` | for `opaque`/`both` | n/a | client_secret for introspection |
+| `sec.security.type-header-name` | no | `type` | HTTP header name used to pick the provider in `both` mode |
 
-### Минимальный пример
+### Minimal example
 
 ```properties
 sec.security.mode=jwt
 sec.security.jwt.jwks-uri=http://localhost:7070/oauth2/jwks
 ```
 
-После этого любой `@RestController` сервиса требует валидный
-`Authorization: Bearer <token>`. Сменить способ проверки — поменять `mode`,
-код не трогается.
+After that, every `@RestController` in the service requires a valid
+`Authorization: Bearer <token>`. To change the verification method, change
+`mode`; the code stays untouched.
 
-### Совместимость
+### Compatibility
 
-- Spring Boot 3.x (namespace `jakarta.*`). Boot 2.x (`javax.*`) не поддерживается.
-- `mode=jwt` — Spring Security 6.3+.
-- `mode=opaque` / `both` — Spring Security 6.5+ (builder
-  `SpringOpaqueTokenIntrospector.withIntrospectionUri`).
-- Если сервис определяет собственный `SecurityFilterChain` — стартер уступает
-  ему (`@ConditionalOnMissingBean`).
+- Spring Boot 3.x (`jakarta.*` namespace). Boot 2.x (`javax.*`) is not supported.
+- `mode=jwt`: Spring Security 6.3+.
+- `mode=opaque` / `both`: Spring Security 6.5+ (the
+  `SpringOpaqueTokenIntrospector.withIntrospectionUri` builder).
+- If the service defines its own `SecurityFilterChain`, the starter yields to it
+  (`@ConditionalOnMissingBean`).
 
-## Запуск стека
+## Running the stack
 
 ```bash
-docker compose up -d postgres   # при необходимости
+docker compose up -d postgres   # if needed
 ```
 
-Запустить четыре приложения: `auth-server-jwt` (7070),
+Start the four applications: `auth-server-jwt` (7070),
 `auth-server-opaque` (6060), `resource-server` (9090), `client` (8080).
 
 End-to-end:
 
 ```bash
-# без токена — 401
+# no token: 401
 curl -i http://localhost:9090/demo
 
-# получить JWT
+# get a JWT
 curl -u client:secret -d "grant_type=client_credentials&scope=read" \
      http://localhost:7070/oauth2/token
 
-# с токеном — 200
+# with a token: 200
 curl -i -H "Authorization: Bearer <token>" -H "type: jwt" \
      http://localhost:9090/demo
 ```
 
-Через клиент: `http://localhost:8080/` → выбор провайдера → логин
-`bill` / `password` → `/call-rs` дёргает ресурс-сервер актуальным токеном.
+Via the client: `http://localhost:8080/` -> pick a provider -> log in as
+`bill` / `password` -> `/call-rs` calls the resource server with a fresh token.
 
-## Инженерные решения
+## Engineering decisions
 
-- **Изоляция session-cookie.** Несколько сервисов на одном `localhost`
-  делят cookie по хосту (без учёта порта). Уникальные имена session-cookie
-  на каждый модуль устраняют перетирание `JSESSIONID` и поломку
-  Authorization Code flow.
-- **DelegatingPasswordEncoder.** Один `PasswordEncoder` обслуживает и пароли
-  пользователей (BCrypt), и client_secret (`{noop}` для dev) — без конфликта
-  форматов.
-- **Порядок автоконфигураций.** Стартер объявляет
-  `@AutoConfiguration(before = SecurityAutoConfiguration.class)`, иначе
-  дефолтная цепочка Spring Boot выигрывает гонку за `SecurityFilterChain`
-  и подменяет поведение на форму логина.
-- **Только не-deprecated API.** Современный
-  `OAuth2AuthorizationServerConfigurer` DSL, builder
-  `SpringOpaqueTokenIntrospector` — без подавления предупреждений.
+- **Session-cookie isolation.** Several services on the same `localhost` share
+  cookies by host (ignoring the port). A unique session-cookie name per module
+  prevents `JSESSIONID` from being overwritten and breaking the Authorization
+  Code flow.
+- **DelegatingPasswordEncoder.** A single `PasswordEncoder` serves both user
+  passwords (BCrypt) and client_secret (`{noop}` for dev) without a format
+  conflict.
+- **Auto-configuration ordering.** The starter declares
+  `@AutoConfiguration(before = SecurityAutoConfiguration.class)`. Otherwise the
+  default Spring Boot chain wins the race for `SecurityFilterChain` and falls
+  back to form-login behavior.
+- **No deprecated APIs.** The modern `OAuth2AuthorizationServerConfigurer` DSL
+  and the `SpringOpaqueTokenIntrospector` builder, with no warning suppression.
 
-## Тесты
+## Tests
 
 ```bash
-mvn test      # быстрые unit (Surefire)
-mvn verify    # unit + integration (Failsafe), 13 тестов
+mvn test      # fast unit tests (Surefire)
+mvn verify    # unit + integration (Failsafe), 13 tests
 ```
 
-- `resource-server`: security-слайс (401 без токена, 200 с mock JWT/opaque).
-- `auth-server-jwt`: интеграционный — выдача JWT, discovery-эндпоинт.
-- `auth-server-opaque`: интеграционный — opaque-токен, introspection.
-- `client`: контекст с mock `ClientRegistrationRepository`, защита `/`.
+- `resource-server`: security slice (401 without a token, 200 with a mock JWT/opaque).
+- `auth-server-jwt`: integration test - JWT issuance, discovery endpoint.
+- `auth-server-opaque`: integration test - opaque token, introspection.
+- `client`: context with a mock `ClientRegistrationRepository`, protection of `/`.
