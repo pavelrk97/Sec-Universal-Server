@@ -15,8 +15,8 @@
     <description>OAuth2 Resource Server. Reproduces book ssia-ch15-ex5: routes incoming requests via AuthenticationManagerResolver to either JwtAuthenticationProvider (against auth-server-jwt) or OpaqueTokenAuthenticationProvider (against auth-server-opaque) based on the "type" HTTP header.</description>
 
     <dependencies>
-        <!-- Наш стартер: тянет security + oauth2-resource-server транзитивно
-             и сам настраивает SecurityFilterChain по sec.security.mode -->
+        <!-- Our starter: pulls in security + oauth2-resource-server transitively
+             and configures SecurityFilterChain itself based on sec.security.mode -->
         <dependency>
             <groupId>com.pavelrk97.secserver</groupId>
             <artifactId>sec-universal-starter</artifactId>

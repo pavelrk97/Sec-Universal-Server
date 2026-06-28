@@ -26,7 +26,7 @@ class OpaqueTokenIT {
     void clientCredentials_returnsOpaqueToken_notJwt() {
         String token = obtainToken();
 
-        // opaque-токен — случайная строка, НЕ три JWT-секции через точку
+        // opaque token is a random string, NOT three dot-separated JWT sections
         assertThat(token).isNotBlank();
         assertThat(token.split("\\.")).hasSize(1);
     }

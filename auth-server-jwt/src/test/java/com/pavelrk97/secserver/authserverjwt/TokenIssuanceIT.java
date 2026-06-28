@@ -39,7 +39,7 @@ class TokenIssuanceIT {
 
         String payload = new String(Base64.getUrlDecoder().decode(parts[1]));
         assertThat(payload)
-                .contains("\"priority\":\"HIGH\"")   // наш OAuth2TokenCustomizer
+                .contains("\"priority\":\"HIGH\"")   // our OAuth2TokenCustomizer
                 .contains("\"scope\"")
                 .contains("read");
     }

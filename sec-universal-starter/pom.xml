@@ -28,8 +28,8 @@
             <artifactId>spring-boot-autoconfigure</artifactId>
         </dependency>
 
-        <!-- HttpServletRequest нужен для AuthenticationManagerResolver (режим both).
-             provided: servlet-контейнер всегда есть у того, кто подключит стартер. -->
+        <!-- HttpServletRequest is needed for AuthenticationManagerResolver (both mode).
+             provided: whoever adds the starter always has a servlet container. -->
         <dependency>
             <groupId>jakarta.servlet</groupId>
             <artifactId>jakarta.servlet-api</artifactId>
